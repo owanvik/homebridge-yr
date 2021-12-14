@@ -2,6 +2,7 @@
 
 var Service, Characteristic;
 var temperatureService;
+var WindSpeedService;
 var request = require("request");
 
 module.exports = function (homebridge) {
@@ -12,7 +13,8 @@ module.exports = function (homebridge) {
 
 function WeatherAccessory(log, config) {
     this.log = log;
-    this.name = config["name"];
+    this.nameTemp = config["nameTemp"];
+    this.nameWS = config["nameWS"]
     this.location = config["location"];
     this.lastupdate = 0;
     this.temperature = 0;
@@ -33,14 +35,24 @@ WeatherAccessory.prototype =
                         var temperature = parseFloat(weatherObj.properties.timeseries[2].data.instant.details.air_temperature);
                         this.log("temperature: ", temperature);
                         this.temperature = temperature;
+
+                        var WindSpeed = parseFloat(weatherObj.properties.timeseries[2].data.instant.details.wind_speed);
+                        this.log("WindSpeed: ", WindSpeed);
+                        this.WindSpeed = WindSpeed;
+
                         this.lastupdate = (Date.now() / 1000);
-                        callback(null, this.temperature);
+                        callback(null, this.temperature, this.WindSpeed);
                     }
                 }.bind(this));
             } else {
                 this.log("Returning cached data", this.temperature);
                 temperatureService.setCharacteristic(Characteristic.CurrentTemperature, this.temperature);
                 callback(null, this.temperature);
+
+                this.log("Returning cached data", this.WindSpeed);
+                WindSpeedService.setCharacteristic(Characteristic.CurrentWindSpeed, this.WindSpeed);
+                callback(null, this.WindSpeed);
+
             }
         },
 
@@ -53,11 +65,11 @@ WeatherAccessory.prototype =
             var informationService = new Service.AccessoryInformation();
 
             informationService
-                .setCharacteristic(Characteristic.Manufacturer, "Linus Nyrén")
+                .setCharacteristic(Characteristic.Manufacturer, "Olai Wanvik")
                 .setCharacteristic(Characteristic.Model, "Location")
                 .setCharacteristic(Characteristic.SerialNumber, "");
 
-            temperatureService = new Service.TemperatureSensor(this.name);
+            temperatureService = new Service.TemperatureSensor(this.nameTemp);
             temperatureService
                 .getCharacteristic(Characteristic.CurrentTemperature)
                 .on("get", this.getState.bind(this));
@@ -68,9 +80,26 @@ WeatherAccessory.prototype =
 
             temperatureService
                 .getCharacteristic(Characteristic.CurrentTemperature)
-                .setProps({maxValue: 120});
+                .setProps({ maxValue: 120 });
 
-            return [informationService, temperatureService];
+            WindSpeedService = new Service.WindSpeedSensor(this.nameWS);
+            WindSpeedService
+                .getCharacteristic(Characteristic.CurrentWindSpeed)
+                .on("get", this.getState.bind(this));
+
+            WindSpeedService
+                .getCharacteristic(Characteristic.CurrentWindSpeed)
+                .setProps({ minValue: -30 });
+
+            WindSpeedService
+                .getCharacteristic(Characteristic.CurrentWindSpeed)
+                .setProps({ maxValue: 120 });
+
+
+            return [informationService, temperatureService, WindSpeedService];
+
+
+
         },
 
         httpRequest: function (url, callback) {
@@ -89,6 +118,8 @@ WeatherAccessory.prototype =
         }
 
     };
+
+    
 
 if (!Date.now) {
     Date.now = function () {
